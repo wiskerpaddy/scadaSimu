@@ -3,177 +3,385 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>仮想タンクモック</title>
+<title>マルチプラント HMI モック</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  body { font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; padding:20px; background:#f6f8fb; color:#111; }
-  h1 { margin:0 0 12px 0; font-size:20px; }
-  .layout { display:flex; gap:24px; align-items:flex-start; }
-  .panel { background:#fff; padding:16px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.06); width:360px; }
-  #tank { width:160px; height:320px; border-radius:8px; border:4px solid #333; position:relative; overflow:hidden; background:linear-gradient(#fff,#eee); margin:0 auto; }
-  #water { position:absolute; bottom:0; left:0; width:100%; background:linear-gradient(#4fb, #06f); transition:height 0.6s linear; }
-  .info { text-align:center; margin-top:8px; font-weight:600; }
-  .controls { display:flex; gap:8px; justify-content:center; margin-top:12px; }
-  button { padding:8px 12px; border-radius:6px; border:0; cursor:pointer; background:#0b79ff; color:#fff; }
-  button.secondary { background:#666; }
-  label { display:block; font-size:13px; margin-top:10px; color:#444; }
-  input[type="range"] { width:100%; }
-  .small { font-size:13px; color:#666; }
-  .row { display:flex; gap:8px; align-items:center; }
-  .param { margin-top:8px; }
-  footer { margin-top:18px; font-size:13px; color:#666; }
-  .badge { display:inline-block; padding:4px 8px; background:#eef; border-radius:6px; font-weight:600; color:#036; }
+  body{font-family:"Noto Sans JP",system-ui,-apple-system;margin:18px;background:#f4f7fb;color:#111}
+  h1{margin:0 0 12px 0;font-size:20px}
+  .grid{display:flex;gap:14px;flex-wrap:wrap}
+  .card{background:#fff;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(10,20,40,0.06);width:220px}
+  .card .title{font-weight:700;margin-bottom:6px}
+  .card .meta{font-size:13px;color:#666}
+  .btn{display:inline-block;padding:8px 10px;border-radius:8px;border:0;background:#0b79ff;color:#fff;cursor:pointer}
+  .btn.ghost{background:#eee;color:#333}
+  .layout{display:flex;gap:16px;margin-top:14px}
+  .left{width:280px}
+  .main{flex:1}
+  #tank{width:200px;height:360px;border-radius:8px;border:4px solid #333;position:relative;overflow:hidden;background:linear-gradient(#fff,#eee);margin:0 auto}
+  #water{position:absolute;bottom:0;left:0;width:100%;background:linear-gradient(#4fb,#06f);transition:height 0.6s linear}
+  .controls{display:flex;gap:8px;justify-content:center;margin-top:10px}
+  label{display:block;margin-top:10px;font-size:13px;color:#444}
+  input[type=range]{width:100%}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{padding:6px;border-bottom:1px solid #eee;text-align:left;font-size:13px}
+  .small{font-size:13px;color:#666}
+  .topbar{display:flex;justify-content:space-between;align-items:center}
+  .plant-header{display:flex;gap:12px;align-items:center}
+  .plant-icon{width:48px;height:48px;border-radius:8px;background:#eef;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .preset{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+  .preset button{padding:6px 8px;border-radius:6px;border:0;background:#eee;cursor:pointer}
 </style>
 </head>
 <body>
-  <h1>仮想タンクモック</h1>
+  <div class="topbar">
+    <div>
+      <h1>マルチプラント HMI モック</h1>
+      <div class="small">複数の工場タイプを切り替えてデモできるフロントのみモック</div>
+    </div>
+    <div>
+      <button id="btn-export" class="btn ghost">全履歴をCSV</button>
+      <button id="btn-reset-all" class="btn ghost">全リセット</button>
+    </div>
+  </div>
+
+  <!-- プラント一覧 -->
+  <div style="margin-top:12px">
+    <div class="small">プラント一覧</div>
+    <div class="grid" id="plant-grid"></div>
+  </div>
+
+  <!-- レイアウト: 左にプラント概要、右にメイン -->
   <div class="layout">
-    <div class="panel" style="width:220px;">
-      <div id="tank"><div id="water" style="height:20%"></div></div>
-      <div class="info">水位: <span id="level">20</span>%</div>
-      <div class="controls">
-        <button id="btn-on">ポンプ ON</button>
-        <button id="btn-off" class="secondary">ポンプ OFF</button>
+    <div class="left card" id="left-panel">
+      <div class="plant-header">
+        <div id="plant-icon" class="plant-icon">P</div>
+        <div>
+          <div id="plant-name" style="font-weight:700">選択してください</div>
+          <div id="plant-type" class="small">—</div>
+        </div>
       </div>
-      <div style="text-align:center; margin-top:8px;">
-        <label class="small">ポンプ状態: <span id="pump-state">OFF</span></label>
+
+      <div id="plant-desc" class="small" style="margin-top:8px">プラントを選ぶと詳細が表示されます。</div>
+
+      <div style="margin-top:12px">
+        <label>プリセット</label>
+        <div class="preset" id="preset-list"></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>擬似タグ（HR/Coil）</label>
+        <div id="tag-panel" style="max-height:220px;overflow:auto"></div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="badge">パラメータ調整</div>
-
-      <label>更新間隔（ms） <span id="lbl-interval">1000</span></label>
-      <input id="inp-interval" type="range" min="200" max="2000" step="100" value="1000">
-
-      <label>ポンプ注入量（% / tick） <span id="lbl-fill">2</span></label>
-      <input id="inp-fill" type="range" min="0" max="10" step="0.5" value="2">
-
-      <label>自然減少量（% / tick） <span id="lbl-drain">1</span></label>
-      <input id="inp-drain" type="range" min="0" max="5" step="0.1" value="1">
-
-      <label>最大水位（%） <span id="lbl-max">100</span></label>
-      <input id="inp-max" type="range" min="50" max="200" step="1" value="100">
-
-      <label>最小水位（%） <span id="lbl-min">0</span></label>
-      <input id="inp-min" type="range" min="0" max="50" step="1" value="0">
-
-      <label class="param">自動モード</label>
-      <div class="row">
-        <button id="btn-auto" class="secondary">自動 OFF</button>
-        <div class="small" style="margin-left:auto">しきい値: <input id="auto-threshold" type="number" value="30" style="width:64px; margin-left:6px;">%</div>
+    <div class="main card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700">ダッシュボード</div>
+        <div class="small">URLハッシュで共有可</div>
       </div>
 
-      <label class="param">初期水位（%）</label>
-      <div class="row">
-        <input id="init-level" type="number" value="20" style="width:80px;">
-        <button id="btn-reset" class="secondary">リセット</button>
+      <div style="display:flex;gap:18px;margin-top:12px">
+        <div style="flex:0 0 220px">
+          <div id="tank"><div id="water" style="height:20%"></div></div>
+          <div style="text-align:center;margin-top:8px;font-weight:700">水位: <span id="level">20</span>%</div>
+          <div class="controls">
+            <button id="btn-on" class="btn">ポンプ ON</button>
+            <button id="btn-off" class="btn ghost">ポンプ OFF</button>
+          </div>
+          <div style="text-align:center;margin-top:8px" class="small">ポンプ: <span id="pump-state">OFF</span></div>
+        </div>
+
+        <div style="flex:1">
+          <canvas id="chart" height="140"></canvas>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <div style="flex:1">
+              <label>更新間隔（ms） <span id="lbl-interval">1000</span></label>
+              <input id="inp-interval" type="range" min="200" max="2000" step="100" value="1000">
+              <label>注入量（%/tick） <span id="lbl-fill">2</span></label>
+              <input id="inp-fill" type="range" min="0" max="10" step="0.5" value="2">
+              <label>減少量（%/tick） <span id="lbl-drain">1</span></label>
+              <input id="inp-drain" type="range" min="0" max="5" step="0.1" value="1">
+            </div>
+
+            <div style="width:220px">
+              <label>シナリオ</label>
+              <div style="display:flex;gap:8px">
+                <button id="btn-record" class="btn ghost">録画</button>
+                <button id="btn-play" class="btn ghost">再生</button>
+                <button id="btn-clear" class="btn ghost">クリア</button>
+              </div>
+              <label style="margin-top:8px">ログ</label>
+              <div id="log" style="height:120px;overflow:auto;background:#0b1220;color:#cfefff;padding:8px;border-radius:6px;font-family:monospace;font-size:12px"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <label class="param">保存 / 読込</label>
-      <div class="row">
-        <button id="btn-save" class="secondary">設定を保存</button>
-        <button id="btn-load" class="secondary">保存を読み込む</button>
+      <div style="margin-top:12px">
+        <label class="small">プラント固有のメタデータ</label>
+        <div id="meta-panel" class="small"></div>
       </div>
-
-      <footer>このモックはフロントエンドのみで動作します。GitHub Pages に置いて公開できます。</footer>
     </div>
   </div>
 
 <script>
-/* 状態とパラメータ */
-const state = {
-  water: 20,
-  pump: false,
-  auto: false,
-  interval: 1000,
-  fill: 2,
-  drain: 1,
-  max: 100,
-  min: 0,
-  autoThreshold: 30
-};
+/* ----- プラント定義（ここに好きなだけ追加） ----- */
+const PLANTS = [
+  { id:'waterworks', name:'浄水場A', type:'水処理', color:'#0b79ff', desc:'飲料水処理プラント。流量と水位管理が重要。', meta:{location:'仙台市', operator:'市水道局'}, presets:[
+    {id:'normal', name:'通常運転', water:40, pump:false},
+    {id:'high', name:'高需要', water:60, pump:true},
+    {id:'alarm', name:'漏水アラーム', water:90, pump:true}
+  ]},
+  { id:'brewery', name:'ブルワリーB', type:'食品（醸造）', color:'#ff7a00', desc:'発酵タンクや温度管理を模擬。', meta:{location:'福島', operator:'クラフト社'}, presets:[
+    {id:'ferment', name:'発酵中', water:55, pump:false},
+    {id:'transfer', name:'移送中', water:30, pump:true}
+  ]},
+  { id:'chemical', name:'化学工場C', type:'化学', color:'#8b2cff', desc:'薬液タンクとバルブ操作のデモ。', meta:{location:'茨城', operator:'化学X'}, presets:[
+    {id:'idle', name:'待機', water:20, pump:false},
+    {id:'process', name:'処理中', water:70, pump:true}
+  ]},
+  { id:'power', name:'発電所D', type:'発電', color:'#22c55e', desc:'冷却水タンクや循環ポンプの模擬。', meta:{location:'宮城', operator:'電力Y'}, presets:[
+    {id:'standby', name:'待機', water:50, pump:false},
+    {id:'peak', name:'ピーク運転', water:80, pump:true}
+  ]}
+];
 
+/* ----- 状態管理 ----- */
+let currentPlant = null;
+const plantState = {}; // plantId -> {water,pump,history,registers,coils}
+function ensurePlantState(id){
+  if(!plantState[id]){
+    plantState[id] = {
+      water:20, pump:false, history:[], registers:new Array(20).fill(0), coils:new Array(10).fill(false), scenario:[]
+    };
+  }
+  return plantState[id];
+}
+
+/* ----- UI 初期化 ----- */
+const grid = document.getElementById('plant-grid');
+PLANTS.forEach(p=>{
+  const div = document.createElement('div'); div.className='card';
+  div.innerHTML = `<div class="title">${p.name}</div><div class="meta">${p.type}</div><div style="margin-top:8px" class="small">${p.desc}</div><div style="margin-top:8px"><button class="btn" data-id="${p.id}">開く</button></div>`;
+  grid.appendChild(div);
+});
+grid.querySelectorAll('button').forEach(b=>b.addEventListener('click', e=>{
+  const id = e.target.dataset.id; openPlant(id);
+}));
+
+/* ----- Chart.js ----- */
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type:'line',
+  data:{labels:[],datasets:[{label:'水位 %',data:[],borderColor:'#0b79ff',backgroundColor:'rgba(11,121,255,0.08)',tension:0.2}]},
+  options:{animation:false,scales:{x:{display:false},y:{min:0,max:100}}}
+});
+
+/* ----- DOM refs ----- */
 const el = id => document.getElementById(id);
+const logEl = el('log');
 
-/* UI 初期化 */
-function syncUI(){
-  el('level').textContent = Math.round(state.water);
-  el('water').style.height = Math.max(0, Math.min(100, state.water)) + '%';
-  el('pump-state').textContent = state.pump ? 'ON' : 'OFF';
-  el('lbl-interval').textContent = state.interval;
-  el('lbl-fill').textContent = state.fill;
-  el('lbl-drain').textContent = state.drain;
-  el('lbl-max').textContent = state.max;
-  el('lbl-min').textContent = state.min;
-  el('btn-auto').textContent = state.auto ? '自動 ON' : '自動 OFF';
-  el('auto-threshold').value = state.autoThreshold;
+/* ----- 操作ログ ----- */
+function log(msg){ const t=new Date().toLocaleTimeString(); logEl.innerText = `[${t}] ${msg}\n` + logEl.innerText; }
+
+/* ----- プラントを開く ----- */
+function openPlant(id){
+  const p = PLANTS.find(x=>x.id===id); if(!p) return;
+  currentPlant = p;
+  location.hash = `plant=${id}`; // 共有用
+  el('plant-name').innerText = p.name;
+  el('plant-type').innerText = p.type;
+  el('plant-desc').innerText = p.desc;
+  el('plant-icon').style.background = p.color; el('plant-icon').innerText = p.name[0];
+  el('meta-panel').innerText = Object.entries(p.meta).map(([k,v])=>`${k}: ${v}`).join('  ');
+  // ensure state
+  const s = ensurePlantState(id);
+  // apply presets UI
+  const presetList = el('preset-list'); presetList.innerHTML='';
+  p.presets.forEach(ps=>{
+    const btn = document.createElement('button'); btn.textContent = ps.name;
+    btn.addEventListener('click', ()=>{ applyPreset(id, ps); });
+    presetList.appendChild(btn);
+  });
+  // render tags
+  renderTagPanel(id);
+  // load chart/history
+  renderChart(id);
+  updateMainUI(id);
+  log(`プラント ${p.name} を開きました`);
 }
 
-/* UI イベント */
-el('btn-on').addEventListener('click', ()=> { state.pump = true; syncUI(); });
-el('btn-off').addEventListener('click', ()=> { state.pump = false; syncUI(); });
-el('inp-interval').addEventListener('input', (e)=> { state.interval = Number(e.target.value); syncUI(); restartTimer(); });
-el('inp-fill').addEventListener('input', (e)=> { state.fill = Number(e.target.value); syncUI(); });
-el('inp-drain').addEventListener('input', (e)=> { state.drain = Number(e.target.value); syncUI(); });
-el('inp-max').addEventListener('input', (e)=> { state.max = Number(e.target.value); syncUI(); });
-el('inp-min').addEventListener('input', (e)=> { state.min = Number(e.target.value); syncUI(); });
-el('btn-auto').addEventListener('click', ()=> { state.auto = !state.auto; syncUI(); });
-el('auto-threshold').addEventListener('change', (e)=> { state.autoThreshold = Number(e.target.value); syncUI(); });
-el('init-level').addEventListener('change', (e)=> { state.water = Number(e.target.value); syncUI(); });
-el('btn-reset').addEventListener('click', ()=> { state.water = Number(el('init-level').value); state.pump = false; syncUI(); });
-el('btn-save').addEventListener('click', ()=> {
-  localStorage.setItem('tankMockParams', JSON.stringify(state));
-  alert('設定を保存しました');
+/* ----- プリセット適用 ----- */
+function applyPreset(id, preset){
+  const s = ensurePlantState(id);
+  s.water = preset.water;
+  s.pump = preset.pump;
+  s.history.push({t:Date.now(), water:s.water, pump:s.pump});
+  renderChart(id);
+  updateMainUI(id);
+  log(`プリセット ${preset.name} を適用`);
+}
+
+/* ----- タグパネル（擬似Modbus） ----- */
+function renderTagPanel(id){
+  const s = ensurePlantState(id);
+  const panel = el('tag-panel'); panel.innerHTML='';
+  const hrTitle = document.createElement('div'); hrTitle.className='small'; hrTitle.innerText='HR (保持レジスタ)';
+  panel.appendChild(hrTitle);
+  const table = document.createElement('table'); table.innerHTML = '<thead><tr><th>addr</th><th>value</th></tr></thead><tbody></tbody>';
+  panel.appendChild(table);
+  const tbody = table.querySelector('tbody');
+  s.registers.forEach((v,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i}</td><td><input data-addr="${i}" style="width:80px" value="${v}"></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const a = Number(e.target.dataset.addr);
+      s.registers[a] = Number(e.target.value);
+      log(`HR[${a}] = ${s.registers[a]}`);
+    });
+  });
+  const coilTitle = document.createElement('div'); coilTitle.className='small'; coilTitle.innerText='Coil';
+  panel.appendChild(coilTitle);
+  const table2 = document.createElement('table'); table2.innerHTML = '<thead><tr><th>addr</th><th>state</th></tr></thead><tbody></tbody>';
+  panel.appendChild(table2);
+  const tbody2 = table2.querySelector('tbody');
+  s.coils.forEach((v,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i}</td><td><input type="checkbox" data-addr="${i}" ${v?'checked':''}></td>`;
+    tbody2.appendChild(tr);
+  });
+  tbody2.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const a = Number(e.target.dataset.addr);
+      s.coils[a] = e.target.checked;
+      log(`Coil[${a}] = ${s.coils[a]}`);
+      if(a===0){ s.pump = s.coils[0]; updateMainUI(currentPlant.id); }
+    });
+  });
+}
+
+/* ----- メインUI更新 ----- */
+function updateMainUI(id){
+  const s = ensurePlantState(id);
+  el('level').innerText = Math.round(s.water);
+  el('water').style.height = Math.max(0,Math.min(100,s.water)) + '%';
+  el('pump-state').innerText = s.pump ? 'ON' : 'OFF';
+}
+
+/* ----- Chart 更新 ----- */
+function renderChart(id){
+  const s = ensurePlantState(id);
+  // ensure at least one sample
+  if(s.history.length===0) s.history.push({t:Date.now(), water:s.water, pump:s.pump});
+  chart.data.labels = s.history.map(h=>new Date(h.t).toLocaleTimeString());
+  chart.data.datasets[0].data = s.history.map(h=>h.water);
+  chart.update();
+}
+
+/* ----- 操作関数 ----- */
+function setPump(id, v){
+  const s = ensurePlantState(id);
+  s.pump = v;
+  s.coils[0] = v;
+  s.history.push({t:Date.now(), water:s.water, pump:s.pump});
+  updateMainUI(id); renderChart(id);
+  log(`${currentPlant.name} のポンプを ${v?'ON':'OFF'}`);
+}
+
+/* ----- シミュレーション tick ----- */
+let tickTimer = null;
+function tickAll(){
+  PLANTS.forEach(p=>{
+    const s = ensurePlantState(p.id);
+    // simple physics: pump increases, else decreases
+    if(s.pump) s.water += Number(el('inp-fill').value || 2);
+    else s.water -= Number(el('inp-drain').value || 1);
+    s.water = Math.max(0, Math.min(100, s.water));
+    s.history.push({t:Date.now(), water:s.water, pump:s.pump});
+    if(currentPlant && currentPlant.id===p.id){
+      updateMainUI(p.id); renderChart(p.id);
+    }
+  });
+}
+
+/* ----- タイマー管理 ----- */
+function restartTick(){
+  if(tickTimer) clearInterval(tickTimer);
+  const interval = Number(el('inp-interval').value || 1000);
+  tickTimer = setInterval(tickAll, interval);
+  el('lbl-interval').innerText = interval;
+}
+el('inp-interval').addEventListener('input', restartTick);
+el('inp-fill').addEventListener('input', ()=> el('lbl-fill').innerText = el('inp-fill').value);
+el('inp-drain').addEventListener('input', ()=> el('lbl-drain').innerText = el('inp-drain').value);
+
+/* ----- ボタンイベント ----- */
+el('btn-on').addEventListener('click', ()=> { if(!currentPlant) return; setPump(currentPlant.id, true); });
+el('btn-off').addEventListener('click', ()=> { if(!currentPlant) return; setPump(currentPlant.id, false); });
+el('btn-reset-all').addEventListener('click', ()=> {
+  Object.keys(plantState).forEach(k=>{ plantState[k].water=20; plantState[k].pump=false; plantState[k].history=[]; });
+  if(currentPlant) { updateMainUI(currentPlant.id); renderChart(currentPlant.id); }
+  log('全プラントをリセットしました');
 });
-el('btn-load').addEventListener('click', ()=> {
-  const s = localStorage.getItem('tankMockParams');
-  if(!s){ alert('保存データがありません'); return; }
-  Object.assign(state, JSON.parse(s));
-  // UIコントロールに値を反映
-  el('inp-interval').value = state.interval;
-  el('inp-fill').value = state.fill;
-  el('inp-drain').value = state.drain;
-  el('inp-max').value = state.max;
-  el('inp-min').value = state.min;
-  el('init-level').value = state.water;
-  syncUI();
+el('btn-export').addEventListener('click', ()=> {
+  // 全プラントの履歴をCSVで出力
+  let csv = 'plant,time,water,pump\n';
+  Object.entries(plantState).forEach(([pid,s])=>{
+    s.history.forEach(h=> csv += `${pid},${new Date(h.t).toISOString()},${h.water},${h.pump}\n`);
+  });
+  const blob = new Blob([csv], {type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='all_plants_history.csv'; a.click();
 });
 
-/* シミュレーションループ */
-let timer = null;
-function tick(){
-  // 自動モード: 水位がしきい値未満ならポンプON、しきい値以上ならOFF
-  if(state.auto){
-    state.pump = state.water < state.autoThreshold;
+/* ----- シナリオ録画/再生（簡易） ----- */
+let recording=false; el('btn-record').addEventListener('click', ()=>{
+  if(!currentPlant) return;
+  recording = !recording; el('btn-record').textContent = recording ? '録画中…' : '録画';
+  if(recording){ plantState[currentPlant.id].scenario = []; log('録画開始'); }
+  else log('録画停止');
+});
+el('btn-play').addEventListener('click', async ()=>{
+  if(!currentPlant) return;
+  const s = ensurePlantState(currentPlant.id);
+  if(!s.scenario || s.scenario.length===0){ log('シナリオがありません'); return; }
+  log('シナリオ再生開始');
+  for(const ev of s.scenario){
+    await new Promise(r=>setTimeout(r, ev.delay));
+    if(ev.type==='pump') setPump(currentPlant.id, ev.value);
+    if(ev.type==='param') Object.assign(s, ev.value);
   }
-  if(state.pump){
-    state.water += state.fill;
-  } else {
-    state.water -= state.drain;
-  }
-  // 範囲制限（パラメータの max/min を尊重）
-  state.water = Math.max(state.min, Math.min(state.max, state.water));
-  syncUI();
+  log('シナリオ再生終了');
+});
+el('btn-clear').addEventListener('click', ()=> { if(!currentPlant) return; plantState[currentPlant.id].scenario=[]; log('シナリオをクリア'); });
+
+/* ----- 録画用フック（簡易） ----- */
+function recordEvent(pid, ev){
+  if(!recording) return;
+  const s = ensurePlantState(pid);
+  s.scenario.push({type:ev.type, value:ev.value, delay: Number(el('inp-interval').value || 1000)});
 }
 
-function restartTimer(){
-  if(timer) clearInterval(timer);
-  timer = setInterval(tick, state.interval);
+/* ----- 初期化 ----- */
+function initFromHash(){
+  const h = location.hash.slice(1);
+  if(!h) return;
+  const params = Object.fromEntries(h.split('&').map(p=>p.split('=')));
+  if(params.plant) openPlant(params.plant);
 }
-
-/* 初期化 */
 function init(){
-  // UIコントロールに初期値を反映
-  el('inp-interval').value = state.interval;
-  el('inp-fill').value = state.fill;
-  el('inp-drain').value = state.drain;
-  el('inp-max').value = state.max;
-  el('inp-min').value = state.min;
-  el('init-level').value = state.water;
-  syncUI();
-  restartTimer();
+  // ensure states
+  PLANTS.forEach(p=> ensurePlantState(p.id));
+  initFromHash();
+  restartTick();
+  log('初期化完了');
 }
 init();
+
+/* ----- URLハッシュで共有可能（例: #plant=brewery） ----- */
+window.addEventListener('hashchange', ()=> initFromHash());
 </script>
 </body>
 </html>
