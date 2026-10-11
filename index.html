@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>仮想タンクモック</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; padding:20px; background:#f6f8fb; color:#111; }
+  h1 { margin:0 0 12px 0; font-size:20px; }
+  .layout { display:flex; gap:24px; align-items:flex-start; }
+  .panel { background:#fff; padding:16px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.06); width:360px; }
+  #tank { width:160px; height:320px; border-radius:8px; border:4px solid #333; position:relative; overflow:hidden; background:linear-gradient(#fff,#eee); margin:0 auto; }
+  #water { position:absolute; bottom:0; left:0; width:100%; background:linear-gradient(#4fb, #06f); transition:height 0.6s linear; }
+  .info { text-align:center; margin-top:8px; font-weight:600; }
+  .controls { display:flex; gap:8px; justify-content:center; margin-top:12px; }
+  button { padding:8px 12px; border-radius:6px; border:0; cursor:pointer; background:#0b79ff; color:#fff; }
+  button.secondary { background:#666; }
+  label { display:block; font-size:13px; margin-top:10px; color:#444; }
+  input[type="range"] { width:100%; }
+  .small { font-size:13px; color:#666; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .param { margin-top:8px; }
+  footer { margin-top:18px; font-size:13px; color:#666; }
+  .badge { display:inline-block; padding:4px 8px; background:#eef; border-radius:6px; font-weight:600; color:#036; }
+</style>
+</head>
+<body>
+  <h1>仮想タンクモック</h1>
+  <div class="layout">
+    <div class="panel" style="width:220px;">
+      <div id="tank"><div id="water" style="height:20%"></div></div>
+      <div class="info">水位: <span id="level">20</span>%</div>
+      <div class="controls">
+        <button id="btn-on">ポンプ ON</button>
+        <button id="btn-off" class="secondary">ポンプ OFF</button>
+      </div>
+      <div style="text-align:center; margin-top:8px;">
+        <label class="small">ポンプ状態: <span id="pump-state">OFF</span></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="badge">パラメータ調整</div>
+
+      <label>更新間隔（ms） <span id="lbl-interval">1000</span></label>
+      <input id="inp-interval" type="range" min="200" max="2000" step="100" value="1000">
+
+      <label>ポンプ注入量（% / tick） <span id="lbl-fill">2</span></label>
+      <input id="inp-fill" type="range" min="0" max="10" step="0.5" value="2">
+
+      <label>自然減少量（% / tick） <span id="lbl-drain">1</span></label>
+      <input id="inp-drain" type="range" min="0" max="5" step="0.1" value="1">
+
+      <label>最大水位（%） <span id="lbl-max">100</span></label>
+      <input id="inp-max" type="range" min="50" max="200" step="1" value="100">
+
+      <label>最小水位（%） <span id="lbl-min">0</span></label>
+      <input id="inp-min" type="range" min="0" max="50" step="1" value="0">
+
+      <label class="param">自動モード</label>
+      <div class="row">
+        <button id="btn-auto" class="secondary">自動 OFF</button>
+        <div class="small" style="margin-left:auto">しきい値: <input id="auto-threshold" type="number" value="30" style="width:64px; margin-left:6px;">%</div>
+      </div>
+
+      <label class="param">初期水位（%）</label>
+      <div class="row">
+        <input id="init-level" type="number" value="20" style="width:80px;">
+        <button id="btn-reset" class="secondary">リセット</button>
+      </div>
+
+      <label class="param">保存 / 読込</label>
+      <div class="row">
+        <button id="btn-save" class="secondary">設定を保存</button>
+        <button id="btn-load" class="secondary">保存を読み込む</button>
+      </div>
+
+      <footer>このモックはフロントエンドのみで動作します。GitHub Pages に置いて公開できます。</footer>
+    </div>
+  </div>
+
+<script>
+/* 状態とパラメータ */
+const state = {
+  water: 20,
+  pump: false,
+  auto: false,
+  interval: 1000,
+  fill: 2,
+  drain: 1,
+  max: 100,
+  min: 0,
+  autoThreshold: 30
+};
+
+const el = id => document.getElementById(id);
+
+/* UI 初期化 */
+function syncUI(){
+  el('level').textContent = Math.round(state.water);
+  el('water').style.height = Math.max(0, Math.min(100, state.water)) + '%';
+  el('pump-state').textContent = state.pump ? 'ON' : 'OFF';
+  el('lbl-interval').textContent = state.interval;
+  el('lbl-fill').textContent = state.fill;
+  el('lbl-drain').textContent = state.drain;
+  el('lbl-max').textContent = state.max;
+  el('lbl-min').textContent = state.min;
+  el('btn-auto').textContent = state.auto ? '自動 ON' : '自動 OFF';
+  el('auto-threshold').value = state.autoThreshold;
+}
+
+/* UI イベント */
+el('btn-on').addEventListener('click', ()=> { state.pump = true; syncUI(); });
+el('btn-off').addEventListener('click', ()=> { state.pump = false; syncUI(); });
+el('inp-interval').addEventListener('input', (e)=> { state.interval = Number(e.target.value); syncUI(); restartTimer(); });
+el('inp-fill').addEventListener('input', (e)=> { state.fill = Number(e.target.value); syncUI(); });
+el('inp-drain').addEventListener('input', (e)=> { state.drain = Number(e.target.value); syncUI(); });
+el('inp-max').addEventListener('input', (e)=> { state.max = Number(e.target.value); syncUI(); });
+el('inp-min').addEventListener('input', (e)=> { state.min = Number(e.target.value); syncUI(); });
+el('btn-auto').addEventListener('click', ()=> { state.auto = !state.auto; syncUI(); });
+el('auto-threshold').addEventListener('change', (e)=> { state.autoThreshold = Number(e.target.value); syncUI(); });
+el('init-level').addEventListener('change', (e)=> { state.water = Number(e.target.value); syncUI(); });
+el('btn-reset').addEventListener('click', ()=> { state.water = Number(el('init-level').value); state.pump = false; syncUI(); });
+el('btn-save').addEventListener('click', ()=> {
+  localStorage.setItem('tankMockParams', JSON.stringify(state));
+  alert('設定を保存しました');
+});
+el('btn-load').addEventListener('click', ()=> {
+  const s = localStorage.getItem('tankMockParams');
+  if(!s){ alert('保存データがありません'); return; }
+  Object.assign(state, JSON.parse(s));
+  // UIコントロールに値を反映
+  el('inp-interval').value = state.interval;
+  el('inp-fill').value = state.fill;
+  el('inp-drain').value = state.drain;
+  el('inp-max').value = state.max;
+  el('inp-min').value = state.min;
+  el('init-level').value = state.water;
+  syncUI();
+});
+
+/* シミュレーションループ */
+let timer = null;
+function tick(){
+  // 自動モード: 水位がしきい値未満ならポンプON、しきい値以上ならOFF
+  if(state.auto){
+    state.pump = state.water < state.autoThreshold;
+  }
+  if(state.pump){
+    state.water += state.fill;
+  } else {
+    state.water -= state.drain;
+  }
+  // 範囲制限（パラメータの max/min を尊重）
+  state.water = Math.max(state.min, Math.min(state.max, state.water));
+  syncUI();
+}
+
+function restartTimer(){
+  if(timer) clearInterval(timer);
+  timer = setInterval(tick, state.interval);
+}
+
+/* 初期化 */
+function init(){
+  // UIコントロールに初期値を反映
+  el('inp-interval').value = state.interval;
+  el('inp-fill').value = state.fill;
+  el('inp-drain').value = state.drain;
+  el('inp-max').value = state.max;
+  el('inp-min').value = state.min;
+  el('init-level').value = state.water;
+  syncUI();
+  restartTimer();
+}
+init();
+</script>
+</body>
+</html>
